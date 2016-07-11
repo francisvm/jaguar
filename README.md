@@ -3,8 +3,9 @@
 The Async Tiger project aims at adding asynchronous support to the Tiger
 language.
 
-Take a look at the `proposal.md` in order to see more about the specifications
-of the project.
+Take a look at the
+[proposal.md](https://github.com/thegameg/async-tiger/blob/master/proposal.md)
+in order to see more about the specifications of the project.
 
 ### Authors
 
