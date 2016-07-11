@@ -1,3 +1,5 @@
+![Async Tiger](https://github.com/thegameg/async-tiger/blob/master/resources/logo.png)
+
 # Async Tiger
 
 The Async Tiger project aims at adding asynchronous support to the Tiger
