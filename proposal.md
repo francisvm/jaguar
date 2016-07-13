@@ -7,28 +7,14 @@
 | async id ( [ exp { , exp }] )
 # Method call.
 | async lvalue . id ( [ exp { , exp }] )
-
-# Function declaration.
-| async function id ( tyfields ) [ : type-id ] = exp
-# Primitive declaration.
-| async primitive id ( tyfields ) [ : type-id ]
-# Method declaration.
-| async method id ( tyfields ) [ : type-id ] = exp
-
 ```
 
 ## Bindings
-
-The `AsyncFunctionDec` is handled the same way as the `FunctionDec` by the
-`Binder`.
 
 The `AsyncCallExp` is handled the same way as the `CallExp` by the
 `Binder`.
 
 ## Typing
-
-The `AsyncFunctionDec` is handled the same way as the `FunctionDec` by the
-`TypeChecker`.
 
 The `AsyncCallExp` is handled the same way as the `CallExp` by the
 `TypeChecker`.
@@ -43,43 +29,10 @@ A `routine` is one of the following:
 * primitive
 * method.
 
-### Declarations
-
-Tagging a routine declaration with the keyword `async` specifies to the
-compiler that this routine is available to be called in an asynchronous context.
-
-#### Example
-
-```tiger
-type char = int
-type char_array = array of char
-async function read(int size) : char_array =
-(
-  let
-    var buf := char_array [size] of 0
-  in
-    for i := 0 to size do
-      buf[i] = ord(getchar());
-
-    buf
-  end
-)
-```
-
 ### Calls
 
-Calling a routine tagged with the keyword `async` should preserve the regular
-semantics. This means that the `async` tag is meaningless.
-
-#### Example
-
-```tiger
-var buf := read(10) /* Regular call, synchronous */
-```
-
 Tagging a routine call with the keyword `async` should asynchronously execute
-the function in another thread, or at least, it should be executed outside
-the main thread.
+the routine in another thread.
 
 #### Example
 
