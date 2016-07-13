@@ -1,0 +1,30 @@
+let
+  /* This function computes an useless result. */
+  function compute(v : int) : int =
+  (
+    let
+      var result := 0
+    in
+      for i := 0 to v do
+      (
+        for j := 0 to v do
+        (
+          result = v + (result + (j + i) * 2 / (((i * j) + 1) * (result + j))) / 23;
+        )
+      );
+      result
+    end
+  )
+
+  /* Var containing the asynchronous result of the computation. */
+  var async_result := async compute(300)
+
+  /* Var containing the synchronous result of the computation. */
+  var result := compute(300)
+in
+  /* Sync. */
+  print_int(result);
+
+  /* Async. */
+  print_int(async_result);
+end

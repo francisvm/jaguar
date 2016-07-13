@@ -107,6 +107,79 @@ One solution would be to spawn a `POSIX` thread using the `pthreads` API.
 
 This implies that the OS scheduler has to take care of scheduling the threads.
 
+##### Examples
+
+Let's take an example of an use-case of the async call.
+
+```tiger
+let
+  /* This function computes an useless result. */
+  function compute(v : int) : int =
+  (
+    let
+      var result := 0
+    in
+      for i := 0 to v do
+      (
+        for j := 0 to v do
+        (
+          result = v + (result + (j + i) * 2 / (((i * j) + 1) * (result + j))) / 23;
+        )
+      );
+      result
+    end
+  )
+
+  /* Var containing the asynchronous result of the computation. */
+  var async_result := async compute(300)
+
+  /* Var containing the synchronous result of the computation. */
+  var result := compute(300)
+in
+  /* Sync. */
+  print_int(result);
+
+  /* Async. */
+  print_int(async_result);
+end
+```
+
+This should be translated to the equivalent C-program (of course, it's not
+going to be translated to C, but LLVM).
+
+```c
+/* This function computes an useless result. */
+int compute(int v)
+{
+	int result = 0;
+	for (int i = 0; i < v; ++i)
+          result = v + (result + (j + i) * 2 / (((i * j) + 1)
+			* (result + j))) / 23;
+
+	return result;
+}
+
+int main(int argc, char const *argv[])
+{
+	// Var containing the asynchronous result of the computation.
+	int async_result = 0;
+	// Launch a thread running the asynchronous routine.
+	pthread_t async_result_thread = tc_async_call(&compute, 300);
+
+	// Var containing the synchronous result of the computation.
+	int result = compute(300);
+	// Sync.
+	tc_print_int(result);
+
+	// Jon the thread, wait for the routine to be done.
+	tc_async_join(async_result_thread, &async_result);
+	// Async.
+	tc_print_int(async_result);
+
+	return 0;
+}
+```
+
 #### Thread pool
 
 Another solution is to provide a thread pool in Tiger's runtime, available
