@@ -1,4 +1,4 @@
-# Async Tiger
+# Jaguar Compiler
 
 ## Grammar
 

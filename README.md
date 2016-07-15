@@ -1,8 +1,8 @@
-![Async Tiger](https://github.com/thegameg/async-tiger/blob/master/resources/logo.png)
+![Jaguar Compiler](https://github.com/thegameg/async-tiger/blob/master/resources/logo.png)
 
-# Async Tiger
+# Jaguar Compiler (Async Tiger Compiler)
 
-The Async Tiger project aims at adding asynchronous support to the Tiger
+The Jaguar Compiler project aims at adding asynchronous support to the Tiger
 language.
 
 Take a look at the
