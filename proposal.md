@@ -153,6 +153,7 @@ int compute(int v)
 {
 	int result = 0;
 	for (int i = 0; i < v; ++i)
+        for (int j = 0; j < v; ++j)
           result = v + (result + (j + i) * 2 / (((i * j) + 1)
 			* (result + j))) / 23;
 
