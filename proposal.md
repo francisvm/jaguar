@@ -94,7 +94,7 @@ var buf := async read(10)
 //FIXME: Complex expressions:
 
 ```tiger
-var buf := ((), 10, 1320 + 30, (), async read(10))
+var buf := ((); 10; 1320 + 30; (); async read(10))
 ```
 
 ### LLVM
