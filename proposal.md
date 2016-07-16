@@ -148,38 +148,51 @@ This should be translated to the equivalent C-program (of course, it's not
 going to be translated to C, but LLVM).
 
 ```c
+#include <jaguar.h>
+
 /* This function computes an useless result. */
 int compute(int v)
 {
-	int result = 0;
-	for (int i = 0; i < v; ++i)
-        for (int j = 0; j < v; ++j)
-          result = v + (result + (j + i) * 2 / (((i * j) + 1)
-			* (result + j))) / 23;
+  int result = 0;
+  for (int i = 0; i < v; ++i)
+    for (int j = 0; j < v; ++j)
+      result = v + (result + (j + i) * 2 / (((i * j) + 1) * (result + j))) / 23;
 
-	return result;
+  return result;
 }
 
-int main(int argc, char const *argv[])
+int main(void)
 {
-	// Var containing the asynchronous result of the computation.
-	int async_result = 0;
-	// Launch a thread running the asynchronous routine.
-	task_t async_result_thread = tc_async_call(&compute, 300);
+  // Var containing the asynchronous result of the computation.
+  int async_result = 0;
+  // Launch a thread running the asynchronous routine.
+  task_t async_result_thread = tc_async_call((function_t)&compute, 300);
 
-	// Var containing the synchronous result of the computation.
-	int result = compute(300);
-	// Sync.
-	tc_print_int(result);
+  // Var containing the synchronous result of the computation.
+  int result = compute(300);
+  // Sync.
+  tc_print_int(result);
 
-	// Join the thread, wait for the routine to be done.
-	tc_async_return(async_result_thread, &async_result);
-	// Async.
-	tc_print_int(async_result);
+  // Jon the thread, wait for the routine to be done.
+  tc_async_return(async_result_thread, &async_result);
+  // Async.
+  tc_print_int(async_result);
 
-	return 0;
+  return 0;
 }
 ```
+
+##### libjaguar
+
+The library handling all the asynchronous calls from Tiger code to C code, is
+called `libjaguar`.
+
+![libjaguar.h](https://github.com/thegameg/async-tiger/blob/master/sources/libjaguar/jaguar.h)
+
+is the main interface.
+
+It will be implemented in C or C++, but it will always export a C API in order to
+correctly work with Tiger functions.
 
 #### Thread pool
 
