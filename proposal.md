@@ -48,12 +48,11 @@ so the first use of the result of the call is the wait of the thread.
 ```tiger
 let
   var buf := async read(10) /* Asynchronous call */
-  var tmp := ""             /* This happens at the same time with the read.  */
-in                          /* ...                                           */
+in                          /* This happens in parallel with the read.       */
   for i := 0 to 300000 do   /* ...                                           */
     ();                     /* ...                                           */
                             /* ...                                           */
-  print_int(size(buf))      /* Here, we wait for the asynchronous call to be */
+  print_int(buf)            /* Here, we wait for the asynchronous call to be */
                             /* finished, and return the value.               */
 end
 ```
@@ -140,7 +139,7 @@ in
   print_int(result);
 
   /* Async. */
-  print_int(async_result);
+  print_int(async_result)
 end
 ```
 

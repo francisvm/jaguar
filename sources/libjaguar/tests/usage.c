@@ -23,7 +23,7 @@ int main(void)
   // Sync.
   tc_print_int(result);
 
-  // Jon the thread, wait for the routine to be done.
+  // Join the thread, wait for the routine to be done.
   tc_async_return(async_result_thread, &async_result);
   // Async.
   tc_print_int(async_result);
