@@ -237,6 +237,61 @@ attributes #1 = { nounwind }
 attributes #2 = { "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2" "unsafe-fp-math"="false" "use-soft-float"="false" }
 ```
 
+##### Problems
+
+Let's take the following code as an example:
+
+```tiger
+let
+  var a := 10
+  var b := 30
+  var c := async foo(a, b)
+in
+  a := 30;
+  b := 40
+end
+```
+
+Normally, we would just pass `a, b` to `pthread_create`, in order to call the
+routine.
+
+It looks like `pthread_create` only takes one argument.
+
+###### Solution #1
+
+So, the first idea would be to take an easy approach, and to wrap `foo` with
+a function that takes a `va_list` and passes the arguments to `foo`.
+
+But what happens if `foo`'s caller returned and `foo` didn't manage to copy
+the arguments ?
+
+So, we actually need a copy of all the arguments, in order to be able to pass
+them to `foo`'s wrapper, which can properly setup the stack for `foo`'s
+execution.
+
+###### Solution #2
+
+The easies solution would be to forbid this.
+
+If an async variable is defined but never used in the same or > lexical scope,
+a type error should be raised.
+
+###### Solution #3
+
+Another solution would be to add some locks, in order to push the arguments
+properly, then continue.
+
+An easy way would be to use `x = condition_variable()`:
+
+```tiger
+[==== THREAD 0 ===]    [==== THREAD 1 ===]
+ async foo(a, b)
+ wait(x)                push a
+ wait(x)                push b
+ wait(x)                notify(x)
+                        call foo
+```
+
 ##### libjaguar
 
 The library handling all the asynchronous calls from Tiger code to C code, is
