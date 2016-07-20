@@ -199,8 +199,8 @@ declare void @tc_print_int(i32) #0
 declare i32 @compute_21(i32) #1
 
 ; TC-related LLVM intrinsics.
-declare i32 @tc_async_call(i32 (i32, ...)*, ...) #0
-declare void @tc_async_return(i32, i32*) #0
+declare i32 @llvm.tc_async_call(i32 (i32, ...)*, i32, ...) #2
+declare void @llvm.tc_async_return(i32, i32*) #3
 
 ; Function Attrs: nounwind
 define void @tc_main() #1 {
@@ -211,10 +211,10 @@ entry__main:
   %async_result_22 = alloca i32
 
   ; The thread handle.
-  %async_result_thread = call i32 (i32 (i32, ...)*, ...) @tc_async_call(
+  %async_result_thread = call i32 (i32 (i32, ...)*, ...) @llvm.tc_async_call(
                                 i32 (i32, ...)* bitcast (i32 (i32)* @compute_21
                                                 to       i32 (i32, ...)*),
-                                i32 300)
+                                i32 1, i32 300)
 
   %call_compute_21 = call i32 @compute_21(i32 300)
   store i32 %call_compute_21, i32* %result_23
@@ -225,7 +225,8 @@ entry__main:
 
   ; Join the thread, wait for the routine to be done.
   ; This should store in the alloca'd variable.
-  call void @tc_async_return(i32 %async_result_thread, i32* %async_result_22)
+  call void @llvm.tc_async_return(i32 %async_result_thread,
+                                  i32* %async_result_22)
 
   ; Async.
   %async_result_223 = load i32, i32* %async_result_22
@@ -235,11 +236,13 @@ entry__main:
 
 attributes #0 = { inlinehint nounwind }
 attributes #1 = { nounwind }
+attributes #2 = { nounwind "jaguar-call"}
+attributes #3 = { nounwind "jaguar-return"}
 ```
 
 Here, the implementation of `tc_async_return` allocates memory on the heap
 for the arguments to be copied, calls `pthread_create` with a wrapper function
-called `tc_call_in_thread` here, that unpacks the arguments, passes them to the
+called `in_thread_wrapper` here, that unpacks the arguments, passes them to the
 original callee function, and frees the memory.
 
 It's supposed to return a handle to the launched task.
@@ -297,6 +300,64 @@ An easy way would be to use `x = condition_variable()`:
  wait(x)                push b
  wait(x)                notify(x)
                         call foo
+```
+
+##### Solution
+
+The retained solution is the #1.
+
+In order to implement this, a C-based draft code has been created:
+
+```c
+typedef int(*function_t)(void);
+typedef int arg_t;
+
+struct async
+{
+  function_t f;
+  size_t nb_args;
+  arg_t args[0];
+};
+
+void *in_thread_wrapper(void *arg)
+{
+  struct async *a = arg;
+  for (ssize_t i = a->nb_args - 1; i >= 0; --i)
+    __asm__ volatile ("push %%eax\n"
+                     :
+                     :"a"(a->args[i])
+                     : "sp");
+
+  void *res = (void *)a->f();
+
+  __asm__ volatile ("add %0, %%esp\n"
+                    :
+                    :"r"(a->nb_args * sizeof (arg_t))
+                    : "sp");
+  free(a);
+
+  return res;
+}
+
+pthread_t async_call(function_t f, int nb_args, ...)
+{
+  va_list ap;
+  va_start(ap, nb_args);
+
+  struct async *a = malloc(sizeof (struct async) + nb_args * sizeof (arg_t));
+
+  for (int i = 0; i < nb_args; ++i)
+    a->args[i] = va_arg(ap, int);
+  va_end(ap);
+
+  a->nb_args = nb_args;
+  a->f = f;
+
+  pthread_t thread;
+  int res = pthread_create(&thread, NULL, &in_thread_wrapper, a);
+  assert(!res);
+  return thread;
+}
 ```
 
 #### Thread pool
