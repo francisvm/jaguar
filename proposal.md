@@ -98,6 +98,22 @@ var buf := ((); 10; 1320 + 30; (); async read(10))
 
 ### LLVM
 
+The perfect usage of LLVM would be to use it as an external library, and
+provide a non-intrusive usage for our front-end.
+
+But, we can't use `LLVM IR` in order to lower the calls, since we need to do
+some target-specific operations, like `push`, etc, regarding the calling
+convention.
+
+The goal here is to use `X86TargetLowering::LowerFormalArguments` in order to
+pass the arguments to the function, but it seems that it's not that easy.
+
+First, we'll need a `MachineFunctionPass`, which allows us to modify the
+current function in order to implement the intrinsics. The problem is that
+we can't load `MachineFunctionPass`es as a dynamic pass.
+
+So, we need to modify the X86 backend.
+
 ### Scheduling
 
 #### OS
