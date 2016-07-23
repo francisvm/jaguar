@@ -70,32 +70,13 @@ in
 end
 ```
 
-## Implementation
-
-### Use-binder
-
-#### Use-list
-
-We currently have a `def_` attribute on the Bindable<T> class allowing us
-to retrieve the definition of a use.
-
-We now need a list of the uses of a declaration, as LLVM does.
-
-#### Result bind
-
-We need to bind the result variable to the routine call. This means that:
-
-```tiger
-var buf := async read(10)
-```
-
-`buf` needs to be binded to `read` somehow.
-
-//FIXME: Complex expressions:
+//FIXME: Complex expressions: what should we do?
 
 ```tiger
 var buf := ((); 10; 1320 + 30; (); async read(10))
 ```
+
+## Implementation
 
 ### LLVM
 
@@ -103,19 +84,22 @@ The perfect usage of LLVM would be to use it as an external library, and
 provide a non-intrusive usage for our front-end.
 
 But, we can't use `LLVM IR` in order to lower the calls, since we need to do
-some target-specific operations, like `push`, etc, regarding the calling
-convention.
+some target-specific operations, like `push`, regarding the calling convention.
 
 The goal here is to use `X86TargetLowering::LowerFormalArguments` in order to
-pass the arguments to the function, but it seems that it's not that easy.
+pass the arguments to the function, but it looks that it's not that easy.
 
-First, we'll need a `MachineFunctionPass`, which allows us to modify the
-current function in order to implement the intrinsics. The problem is that
-we can't load `MachineFunctionPass`es as a dynamic pass.
+First, we'll need a `MachineFunctionPass`, which allows us to use
+`MachineInstrs` in order to modify the current function, so to implement the
+intrinsics.
 
-So, we need to modify the X86 backend.
+The problem is that we can't load a `MachineFunctionPass` as a dynamic pass,
+as we can do with a `FunctionPass`, so, we need to modify the X86 backend.
 
-### Scheduling
+The repository containing the modified `LLVM` implementation is
+[here](https://github.com/thegameg/llvm/tree/jaguar).
+
+## Threads
 
 #### OS
 
@@ -282,46 +266,15 @@ end
 Normally, we would just pass `a, b` to `pthread_create`, in order to call the
 routine.
 
-It looks like `pthread_create` only takes one argument.
-
-###### Solution #1
-
-So, the first idea would be to take an easy approach, and to wrap `foo` with
-a function that takes a `va_list` and passes the arguments to `foo`.
-
-But what happens if `foo`'s caller returned and `foo` didn't manage to copy
-the arguments ?
-
-So, we actually need a copy of all the arguments, in order to be able to pass
-them to `foo`'s wrapper, which can properly setup the stack for `foo`'s
-execution.
-
-###### Solution #2
-
-The easies solution would be to forbid this.
-
-If an async variable is defined but never used in the same or > lexical scope,
-a type error should be raised.
-
-###### Solution #3
-
-Another solution would be to add some locks, in order to push the arguments
-properly, then continue.
-
-An easy way would be to use `x = condition_variable()`:
-
-```tiger
-[==== THREAD 0 ===]    [==== THREAD 1 ===]
- async foo(a, b)
- wait(x)                push a
- wait(x)                push b
- wait(x)                notify(x)
-                        call foo
+But, `pthread_create`'s prototype is the following:
+```
+int pthread_create(pthread_t *thread, const pthread_attr_t *attr,
+                   void *(*start_routine) (void *), void *arg);
 ```
 
-##### Solution
+So, there's only one argument possible for the callee.
 
-The retained solution is the #1.
+###### Solution
 
 In order to implement this, a C-based draft code has been created:
 
