@@ -27,7 +27,7 @@ A `routine` is one of the following:
 
 * function
 * primitive
-* method.
+* method
 
 ### Calls
 
@@ -65,8 +65,9 @@ compiler should raise warnings as much as possible for this kind of behavior.
 ```tiger
 let
 in
-async read(130)
-print("This is executed after the read's end")
+  async read(130);
+  print("This is executed after the read is done.")
+end
 ```
 
 ## Implementation
