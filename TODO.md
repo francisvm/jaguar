@@ -7,14 +7,14 @@
 
 #### Library
 
-[KO] create
-[KO] join
+[OK] create
+[OK] join
 [KO] thread pool
 
 #### LLVM
 
-[KO] add intrinsic
-[KO] lower intrinsic to function call
+[OK] add intrinsic
+[OK] lower intrinsic to function call
 
 #### TC
 
@@ -22,8 +22,8 @@
 [OK] parser
 [OK] binder and type checker
 [==] async binder
-     [KO] in `var x := async foo()` bind `x` to `foo`.
-     [KO] in `print_int(x)` set `x` as the first usage of the async var.
+     [OK] in `var x := async foo()` bind `x` to `foo`.
+     [OK] in `print_int(x)` set `x` as the first usage of the async var.
 
 ##### Optional
 
