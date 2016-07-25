@@ -87,7 +87,7 @@ But, we can't use `LLVM IR` in order to lower the calls, since we need to do
 some target-specific operations, like `push`, regarding the calling convention.
 
 The goal here is to use `X86TargetLowering::LowerFormalArguments` in order to
-pass the arguments to the function, but it looks that it's not that easy.
+pass the arguments to the function, but it looks that it's not that feasible.
 
 First, we'll need a `MachineFunctionPass`, which allows us to use
 `MachineInstrs` in order to modify the current function, so to implement the
@@ -98,6 +98,14 @@ as we can do with a `FunctionPass`, so, we need to modify the X86 backend.
 
 The repository containing the modified `LLVM` implementation is
 [here](https://github.com/thegameg/llvm/tree/jaguar).
+
+In order to use it, the following command line must be used:
+
+```
+llc -jaguar file.ll
+```
+
+Besides, it only works on the `Triple::x86`.
 
 ## Threads
 
@@ -114,21 +122,7 @@ Let's take an example of an use-case of the async call.
 ```tiger
 let
   /* This function computes an useless result. */
-  function compute(v : int) : int =
-  (
-    let
-      var result := 0
-    in
-      for i := 0 to v do
-      (
-        for j := 0 to v do
-        (
-          result = v + (result + (j + i) * 2 / (((i * j) + 1) * (result + j))) / 23;
-        )
-      );
-      result
-    end
-  )
+  primitive compute(v : int) : int
 
   /* Var containing the asynchronous result of the computation. */
   var async_result := async compute(300)
@@ -151,15 +145,7 @@ going to be translated to C, but LLVM).
 #include <jaguar.h>
 
 /* This function computes an useless result. */
-int compute(int v)
-{
-  int result = 0;
-  for (int i = 0; i < v; ++i)
-    for (int j = 0; j < v; ++j)
-      result = v + (result + (j + i) * 2 / (((i * j) + 1) * (result + j))) / 23;
-
-  return result;
-}
+int compute(int v);
 
 int main(void)
 {
@@ -190,60 +176,47 @@ closer to the optimizer and take a generic approach, as opposed to a
 library call.
 
 ```llvm
-; ModuleID = 'tc'
+; ModuleID = 'basic.ll'
 target triple = "i386-unknown-linux-gnu"
 
 ; Function Attrs: inlinehint nounwind
 declare void @tc_print_int(i32) #0
 
 ; Function Attrs: nounwind
-declare i32 @compute_21(i32) #1
-
-; TC-related LLVM intrinsics.
-declare i32 @llvm.tc_async_call(i32 (i32, ...)*, i32, ...) #2
-declare void @llvm.tc_async_return(i32, i32*) #3
-
-; Function Attrs: nounwind
 define void @tc_main() #1 {
 entry__main:
-  ; Var containing the synchronous result of the computation.
-  %result_23 = alloca i32
-  ; Var containing the asynchronous result of the computation.
-  %async_result_22 = alloca i32
+  %result_19 = alloca i32
+  %async_result_18 = alloca i32
 
-  ; The thread handle.
-  %async_result_thread = call i32 (i32 (i32, ...)*, ...) @llvm.tc_async_call(
-                                i32 (i32, ...)* bitcast (i32 (i32)* @compute_21
-                                                to       i32 (i32, ...)*),
-                                i32 1, i32 300)
+  %async_result_thread = call i32 (i8* (...)*, i32, ...) @tc_async_call(i8* (...)* bitcast (i32 (i32)* @tc_compute to i8* (...)*), i32 1, i32 300)
 
-  %call_compute_21 = call i32 @compute_21(i32 300)
-  store i32 %call_compute_21, i32* %result_23
+  %call_compute = call i32 @tc_compute(i32 300)
+  store i32 %call_compute, i32* %result_19
+  %result_191 = load i32, i32* %result_19
+  call void @tc_print_int(i32 %result_191)
+  %0 = bitcast i32* %async_result_18 to i8**
 
-  ; Sync.
-  %result_232 = load i32, i32* %result_23
-  call void @tc_print_int(i32 %result_232)
+  call void @tc_async_return(i32 %async_result_thread, i8** %0)
 
-  ; Join the thread, wait for the routine to be done.
-  ; This should store in the alloca'd variable.
-  call void @llvm.tc_async_return(i32 %async_result_thread,
-                                  i32* %async_result_22)
-
-  ; Async.
-  %async_result_223 = load i32, i32* %async_result_22
-  call void @tc_print_int(i32 %async_result_223)
+  %async_result_182 = load i32, i32* %async_result_18
+  call void @tc_print_int(i32 %async_result_182)
   ret void
 }
 
+; Function Attrs: inlinehint nounwind
+declare i32 @tc_compute(i32) #0
+
+declare i32 @tc_async_call(i8* (...)*, i32, ...)
+
+declare void @tc_async_return(i32, i8**)
+
 attributes #0 = { inlinehint nounwind }
 attributes #1 = { nounwind }
-attributes #2 = { nounwind "jaguar-call"}
-attributes #3 = { nounwind "jaguar-return"}
 ```
 
-Here, the implementation of `tc_async_return` allocates memory on the heap
+Here, the implementation of `tc_async_call` allocates memory on the heap
 for the arguments to be copied, calls `pthread_create` with a wrapper function
-called `in_thread_wrapper` here, that unpacks the arguments, passes them to the
+called `tc_async_wrapper`, that unpacks the arguments, passes them to the
 original callee function, and frees the memory.
 
 It's supposed to return a handle to the launched task.
@@ -276,20 +249,20 @@ So, there's only one argument possible for the callee.
 
 ###### Solution
 
-In order to implement this, a C-based draft code has been created:
+In order to implement this, the following runtime functions have been added:
 
 ```c
-typedef int(*function_t)(void);
-typedef int arg_t;
+typedef void *(*function_t)();
 
-struct async
+struct async_function
 {
   function_t f;
   size_t nb_args;
-  arg_t args[0];
+  void *args[0];
 };
 
-void *in_thread_wrapper(void *arg)
+// Function called in a separate thread.
+void *tc_async_wrapper(void *arg)
 {
   struct async *a = arg;
   for (ssize_t i = a->nb_args - 1; i >= 0; --i)
@@ -309,25 +282,88 @@ void *in_thread_wrapper(void *arg)
   return res;
 }
 
-pthread_t async_call(function_t f, int nb_args, ...)
+/** \name Internal functions (calls generated by the compiler only). */
+/** \{ */
+
+/** \brief Call a function in a separate thread.
+    \param f       The callee function.
+    \param nb_args The number of arguments the function is taking.
+    \param ...     The arguments to be passed to the function.
+
+    An element size is always the size of a word on 32-bit systems.
+*/
+pthread_t tc_async_call(function_t f, int nb_args, ...)
 {
+  // Prepare the argument list.
   va_list ap;
   va_start(ap, nb_args);
 
-  struct async *a = malloc(sizeof (struct async) + nb_args * sizeof (arg_t));
-
-  for (int i = 0; i < nb_args; ++i)
-    a->args[i] = va_arg(ap, int);
-  va_end(ap);
-
+  // Allocate heap space for the structure followed by the arguments.
+  struct async_function *a = malloc(sizeof (struct async_function)
+                                    + nb_args * sizeof (void *));
   a->nb_args = nb_args;
   a->f = f;
 
+  // Fill the arguments.
+  for (int i = 0; i < nb_args; ++i)
+    a->args[i] = va_arg(ap, void *);
+
+  // Cleanup the argument list.
+  va_end(ap);
+
+  // Create a thread with the intermediate function call.
   pthread_t thread;
-  int res = pthread_create(&thread, NULL, &in_thread_wrapper, a);
-  assert(!res);
+  int res = pthread_create(&thread, NULL, &tc_async_wrapper, a);
+  assert(!res && "Failed to create a thread.");
   return thread;
 }
+/** \} */
+
+/** \name Internal functions (calls generated by the compiler only). */
+/** \{ */
+
+/** \brief Waits for the result of a task and sets the result.
+    \param thread  The thread id that should be joined.
+    \param result  The result memory slot.
+
+    An element size is always the size of a word on 32-bit systems.
+*/
+void tc_async_return(pthread_t thread, void **result)
+{
+  pthread_join(thread, result);
+}
+/** \} */
+```
+
+###### Solution
+
+But actually, `tc_async_wrapper` is not implemented with inline x86 asm, but
+using LLVM's `MachineInstrs`.
+
+```
+%struct.async_function = type { i8* (...)*, i32, [0 x i8*] }
+
+declare i8* @llvm.tc_async_call(i8* (...)* %f, i32 %nb_args, i8** %args) #1
+
+; Function Attrs: nounwind
+define i8* @tc_async_wrapper(i8* %arg) #0 {
+  %fun = bitcast i8* %arg to %struct.async_function*
+  %pf = getelementptr inbounds %struct.async_function,
+             %struct.async_function* %fun, i32 0, i32 0
+  %pnb_args = getelementptr inbounds %struct.async_function,
+             %struct.async_function* %fun, i32 0, i32 1
+  %pargs = getelementptr inbounds %struct.async_function,
+             %struct.async_function* %fun, i32 0, i32 2
+  %args = bitcast [0 x i8*]* %pargs to i8**
+  %f = load i8* (...)*, i8* (...)** %pf, align 4
+  %nb_args = load i32, i32* %pnb_args, align 4
+  %result = call i8* @llvm.tc_async_call(i8* (...)* %f, i32 %nb_args,
+                                          i8** %args)
+  ret i8* %result
+}
+
+attributes #0 = { nounwind "disable-tail-calls"="false" "no-frame-pointer-elim"="true" }
+attributes #1 = { nounwind }
 ```
 
 #### Thread pool
