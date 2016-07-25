@@ -240,7 +240,7 @@ Normally, we would just pass `a, b` to `pthread_create`, in order to call the
 routine.
 
 But, `pthread_create`'s prototype is the following:
-```
+```c
 int pthread_create(pthread_t *thread, const pthread_attr_t *attr,
                    void *(*start_routine) (void *), void *arg);
 ```
@@ -340,7 +340,7 @@ void tc_async_return(pthread_t thread, void **result)
 But actually, `tc_async_wrapper` is not implemented with inline x86 asm, but
 using LLVM's `MachineInstrs`.
 
-```
+```llvm
 %struct.async_function = type { i8* (...)*, i32, [0 x i8*] }
 
 declare i8* @llvm.tc_async_call(i8* (...)* %f, i32 %nb_args, i8** %args) #1
