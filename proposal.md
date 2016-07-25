@@ -338,7 +338,7 @@ void tc_async_return(pthread_t thread, void **result)
 ###### Solution
 
 But actually, `tc_async_wrapper` is not implemented with inline x86 asm, but
-using LLVM's `MachineInstrs`.
+using  `LLVM IR` and an intrinsic call, lowered to LLVM's `MachineInstrs`.
 
 ```llvm
 %struct.async_function = type { i8* (...)*, i32, [0 x i8*] }
@@ -357,6 +357,7 @@ define i8* @tc_async_wrapper(i8* %arg) #0 {
   %args = bitcast [0 x i8*]* %pargs to i8**
   %f = load i8* (...)*, i8* (...)** %pf, align 4
   %nb_args = load i32, i32* %pnb_args, align 4
+  
   %result = call i8* @llvm.tc_async_call(i8* (...)* %f, i32 %nb_args,
                                           i8** %args)
   ret i8* %result
